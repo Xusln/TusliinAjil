@@ -6,7 +6,7 @@ import Link from "next/link";
 
 export default function Register() {
   const [formData, setFormData] = useState({
-    firstName: "", lastName: "", email: "", password: "", confirmPassword: ""
+    firstName: "", lastName: "", email: "", password: "", confirmPassword: "", userType: "student"
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,6 +18,10 @@ export default function Register() {
       setError("Нууц үг таарахгүй");
       return;
     }
+    
+    // SAVE USER TYPE!
+    localStorage.setItem("userType", formData.userType);
+    
     setLoading(true);
     setError("");
     try {
@@ -30,7 +34,7 @@ export default function Register() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -57,12 +61,8 @@ export default function Register() {
         <div className="w-full max-w-[340px]">
           <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-xl p-5 border border-white/50">
             <div className="text-center mb-5">
-              <h2 className="text-xl font-bold text-blue-900 mb-1">
-                Бүртгүүлэх
-              </h2>
-              <p className="text-blue-700 text-xs">
-                Шинэ бүртгэл үүсгэнэ үү
-              </p>
+              <h2 className="text-xl font-bold text-blue-900 mb-1">Бүртгүүлэх</h2>
+              <p className="text-blue-700 text-xs">Шинэ бүртгэл үүсгэнэ үү</p>
             </div>
 
             {error && (
@@ -74,9 +74,7 @@ export default function Register() {
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label htmlFor="firstName" className="block text-xs font-medium text-gray-800 mb-1">
-                    Нэр
-                  </label>
+                  <label htmlFor="firstName" className="block text-xs font-medium text-gray-800 mb-1">Нэр</label>
                   <input
                     type="text"
                     id="firstName"
@@ -89,9 +87,7 @@ export default function Register() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="lastName" className="block text-xs font-medium text-gray-800 mb-1">
-                    Овог
-                  </label>
+                  <label htmlFor="lastName" className="block text-xs font-medium text-gray-800 mb-1">Овог</label>
                   <input
                     type="text"
                     id="lastName"
@@ -106,9 +102,7 @@ export default function Register() {
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-xs font-medium text-gray-800 mb-1">
-                  Имэйл
-                </label>
+                <label htmlFor="email" className="block text-xs font-medium text-gray-800 mb-1">Имэйл</label>
                 <input
                   type="email"
                   id="email"
@@ -123,9 +117,7 @@ export default function Register() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label htmlFor="password" className="block text-xs font-medium text-gray-800 mb-1">
-                    Нууц үг
-                  </label>
+                  <label htmlFor="password" className="block text-xs font-medium text-gray-800 mb-1">Нууц үг</label>
                   <input
                     type="password"
                     id="password"
@@ -139,9 +131,7 @@ export default function Register() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-xs font-medium text-gray-800 mb-1">
-                    Давтах
-                  </label>
+                  <label htmlFor="confirmPassword" className="block text-xs font-medium text-gray-800 mb-1">Давтах</label>
                   <input
                     type="password"
                     id="confirmPassword"
@@ -155,17 +145,40 @@ export default function Register() {
                 </div>
               </div>
 
-              <div className="flex items-center text-xs">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  name="terms"
-                  required
-                  className="rounded border-gray-300/80 text-blue-600 focus:ring-blue-500 mr-1"
-                />
-                <label htmlFor="terms" className="text-gray-700 cursor-pointer">
-                  Нөхцөлийг зөвшөөрч байна
-                </label>
+              <div className="space-y-2 text-xs">
+                <div className="flex gap-4 p-2 bg-gray-50 rounded">
+                  <label className="flex items-center">
+                    <input 
+                      type="radio" 
+                      name="userType" 
+                      value="student" 
+                      checked={formData.userType === "student"}
+                      onChange={handleChange}
+                      className="mr-1" 
+                      required 
+                    />
+                    <span>СУРАГЧ 👦</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input 
+                      type="radio" 
+                      name="userType" 
+                      value="teacher" 
+                      checked={formData.userType === "teacher"}
+                      onChange={handleChange}
+                      className="mr-1" 
+                      required 
+                    />
+                    <span>БАГШ 👩‍🏫</span>
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <input type="checkbox" id="terms" name="terms" required className="rounded border-gray-300/80 text-blue-600 focus:ring-blue-500 mr-1" />
+                  <label htmlFor="terms" className="text-gray-700 cursor-pointer">
+                    Нөхцөлийг зөвшөөрч байна
+                  </label>
+                </div>
               </div>
 
               <button
