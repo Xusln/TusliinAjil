@@ -1,255 +1,228 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+// src/app/dashboard/page.tsx
+'use client';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
 
 export default function Dashboard() {
-  const [userType, setUserType] = useState<"teacher" | "student">("student");
-  const [currentView, setCurrentView] = useState<"categories" | "quiz" | "add">("categories");
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [questions, setQuestions] = useState([
-    { id: 1, category: "Монгол түүх", question: "Монгол улсын нийслэл юу вэ?", answer: "Улаанбаатар", points: 10 },
-    { id: 2, category: "Математик", question: "2 + 2 = ?", answer: "4", points: 5 },
-    { id: 3, category: "Монгол түүх", question: "Чингис хаан хаан болсон жил?", answer: "1206", points: 15 },
-    { id: 4, category: "Англи хэл", question: "Hello гэдэг нь?", answer: "Сайн байна уу", points: 8 },
-  ]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [userAnswer, setUserAnswer] = useState("");
-  const [score, setScore] = useState(0);
-  const [showResult, setShowResult] = useState(false);
+  const [userType, setUserType] = useState<'teacher' | 'student' | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [currentView, setCurrentView] = useState<'categories' | 'quiz' | 'add'>('categories');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const type = localStorage.getItem("userType") || "student";
-    setUserType(type as "teacher" | "student");
-  }, []);
-
-  const filteredQuestions = selectedCategory 
-    ? questions.filter(q => q.category === selectedCategory)
-    : questions;
-
-  const categories = [...new Set(questions.map(q => q.category))];
-
-  const handleSubmitAnswer = () => {
-    if (userAnswer.toLowerCase() === filteredQuestions[currentQuestion].answer.toLowerCase()) {
-      setScore(score + filteredQuestions[currentQuestion].points);
+    const type = localStorage.getItem('userType') as 'teacher' | 'student' | null;
+    if (!type) {
+      router.push('/auth/login');
+      return;
     }
-    if (currentQuestion < filteredQuestions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-      setUserAnswer("");
-    } else {
-      setShowResult(true);
+    setUserType(type);
+
+    Promise.all([api.getCategories(), api.getQuestions()])
+      .then(([cats, qs]) => {
+        setCategories(cats);
+        setQuestions(qs);
+        setLoading(false);
+      })
+      .catch(() => {
+        alert('Сервертэй холбогдохгүй байна');
+        setLoading(false);
+      });
+  }, [router]);
+
+  const handleAddQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const data = {
+      category: form.category.value,
+      question: form.question.value,
+      answer: form.answer.value,
+      points: parseInt(form.points.value),
+    };
+    try {
+      await api.addQuestion(data);
+      setCurrentView('categories');
+      const qs = await api.getQuestions();
+      setQuestions(qs);
+    } catch (err: any) {
+      alert(err.message || 'Асуулт нэмэхэд алдаа гарлаа');
     }
   };
 
-  const restartQuiz = () => {
-    setCurrentQuestion(0);
-    setUserAnswer("");
-    setScore(0);
-    setShowResult(false);
-  };
-
-  if (showResult) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center">
-          <div className="text-4xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-blue-900 mb-2">Дууслаа!</h2>
-          <p className="text-xl text-blue-700 mb-2">
-            Ангилал: <span className="font-bold text-purple-600">{selectedCategory}</span>
-          </p>
-          <p className="text-xl mb-6">
-            Оноо: <span className="font-bold text-green-600">{score}</span>/{filteredQuestions.reduce((a, b) => a + b.points, 0)}
-          </p>
-          <button onClick={restartQuiz} className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition mb-4">
-            Дахин тоглох
-          </button>
-          <button 
-            onClick={() => { setShowResult(false); setCurrentView("categories"); }}
-            className="w-full py-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
-          >
-            Өөр ангилал сонгох
-          </button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Ачаалж байна...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
-      <header className="bg-white/90 backdrop-blur-sm shadow-md">
-        <div className="container mx-auto p-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-blue-600">Brainova</h1>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-              userType === "teacher" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
-            }`}>
-              {userType === "teacher" ? "БАГШ" : "СУРАГЧ"}
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <header className="bg-white p-4 rounded-lg shadow mb-6 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-800">Brainova Quiz</h1>
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+              {userType === 'teacher' ? 'Багш' : 'Сурагч'}
             </span>
+            <button
+              onClick={async () => {
+                await api.logout();
+                localStorage.removeItem('userType');
+                router.push('/auth/login');
+              }}
+              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+            >
+              Гарах
+            </button>
           </div>
-          <Link href="/auth/login" className="text-red-600 hover:text-red-700 font-medium transition">
-            Гарах
-          </Link>
-        </div>
-      </header>
+        </header>
 
-      <main className="container mx-auto p-6 max-w-4xl">
-        {currentView === "categories" && (
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-blue-900 mb-8">КВИЗ СОНГОХ</h2>
-            
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => {
-                    setSelectedCategory(category);
-                    setCurrentView("quiz");
-                    setCurrentQuestion(0);
-                    setScore(0);
-                  }}
-                  className="bg-white/80 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/50 hover:shadow-2xl transition transform hover:-translate-y-1"
-                >
-                  <div className="text-2xl mb-2">📚</div>
-                  <h3 className="font-bold text-blue-900 text-lg">{category}</h3>
-                  <p className="text-xs text-gray-600">
-                    {questions.filter(q => q.category === category).length} асуулт
-                  </p>
-                </button>
-              ))}
-            </div>
-
-            {userType === "teacher" && (
-              <button
-                onClick={() => setCurrentView("add")}
-                className="w-full max-w-md mx-auto py-4 bg-green-600 text-white rounded-xl font-semibold text-lg hover:bg-green-700 transition"
-              >
-                ➕ Шинэ асуулт нэмэх
-              </button>
-            )}
-          </div>
-        )}
-
-        {currentView === "quiz" && filteredQuestions.length > 0 && (
+        {/* Categories View */}
+        {currentView === 'categories' && (
           <div>
-            <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/50 mb-6 text-center">
-              <h2 className="text-xl font-bold text-purple-900 mb-2">{selectedCategory}</h2>
-              <p className="text-blue-700 mb-4">Асуулт: {currentQuestion + 1} / {filteredQuestions.length}</p>
-              <div className="flex justify-center gap-4 text-sm">
-                <span className="text-green-600 font-semibold">Оноо: {score}</span>
-                <span className="text-gray-600">
-                  Нийт: {filteredQuestions.reduce((a, b) => a + b.points, 0)}
-                </span>
-              </div>
-              <button
-                onClick={() => setCurrentView("categories")}
-                className="mt-4 text-blue-600 hover:text-blue-700 text-sm"
-              >
-                ← Өөр ангилал
-              </button>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Ангилал сонгоно уу</h2>
+              {userType === 'teacher' && (
+                <button
+                  onClick={() => setCurrentView('add')}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                >
+                  + Шинэ асуулт
+                </button>
+              )}
             </div>
 
-            <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/50">
-              <div className="text-center mb-6">
-                <h3 className="text-lg font-bold text-blue-900 mb-2">
-                  {filteredQuestions[currentQuestion].question}
-                </h3>
-                <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                  {filteredQuestions[currentQuestion].points} оноо
-                </span>
-              </div>
-              
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Хариултаа бичнэ үү..."
-                  value={userAnswer}
-                  onChange={(e) => setUserAnswer(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-                <button
-                  onClick={handleSubmitAnswer}
-                  disabled={!userAnswer.trim()}
-                  className={`w-full py-3 rounded-lg font-semibold transition text-sm ${
-                    userAnswer.trim()
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                  }`}
-                >
-                  {currentQuestion === filteredQuestions.length - 1 ? "Дуусгах" : "Дараагийн асуулт"}
-                </button>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {categories.length === 0 ? (
+                <p className="text-gray-500 col-span-3 text-center">Ангилал байхгүй</p>
+              ) : (
+                categories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    onClick={() => {
+                      setSelectedCategory(cat.name);
+                      setCurrentView('quiz');
+                    }}
+                    className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer text-center"
+                  >
+                    <h3 className="text-lg font-bold text-gray-800">{cat.name}</h3>
+                    <p className="text-sm text-gray-600 mt-2">
+                      {cat.question_count} асуулт
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
 
-        {currentView === "add" && userType === "teacher" && (
-          <div className="max-w-md mx-auto">
-            <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/50 mb-6 text-center">
-              <h2 className="text-xl font-bold text-green-900 mb-4">ШИНЭ АСУУЛТ</h2>
-              <button
-                onClick={() => setCurrentView("categories")}
-                className="text-blue-600 hover:text-blue-700 text-sm mb-4"
-              >
-                ← Ангилал руу
-              </button>
-            </div>
+        {/* Quiz View */}
+        {currentView === 'quiz' && (
+          <div>
+            <button
+              onClick={() => setCurrentView('categories')}
+              className="mb-4 text-blue-600 hover:underline flex items-center gap-1"
+            >
+              ← Буцах
+            </button>
+            <h2 className="text-xl font-semibold mb-4">{selectedCategory}</h2>
 
-            <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/50">
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.currentTarget);
-                  const newQ = {
-                    id: Date.now(),
-                    category: formData.get("category") as string,
-                    question: formData.get("question") as string,
-                    answer: formData.get("answer") as string,
-                    points: parseInt(formData.get("points") as string),
-                  };
-                  setQuestions([...questions, newQ]);
-                  setCurrentView("categories");
-                }}
-                className="space-y-3"
-              >
-                <select name="category" required className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
-                  <option value="">Ангилал сонгох</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+            <div className="space-y-4">
+              {questions
+                .filter((q) => q.category_name === selectedCategory)
+                .map((q) => (
+                  <div key={q.id} className="bg-white p-5 rounded-lg shadow">
+                    <p className="font-medium text-gray-800">{q.question}</p>
+                    {userType === 'teacher' && (
+                      <div className="mt-3 text-sm text-gray-600">
+                        <span className="font-medium">Хариулт:</span> {q.answer} |{' '}
+                        <span className="font-medium">Оноо:</span>{' '}
+                        <span className="text-green-600 font-bold">{q.points}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Add Question View */}
+        {currentView === 'add' && userType === 'teacher' && (
+          <div>
+            <button
+              onClick={() => setCurrentView('categories')}
+              className="mb-4 text-blue-600 hover:underline flex items-center gap-1"
+            >
+              ← Буцах
+            </button>
+            <h2 className="text-xl font-semibold mb-4">Шинэ асуулт нэмэх</h2>
+
+            <form onSubmit={handleAddQuestion} className="bg-white p-6 rounded-lg shadow space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Ангилал</label>
+                <select
+                  name="category"
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Сонгоно уу</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </option>
                   ))}
                 </select>
-                
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Асуулт</label>
                 <input
                   name="question"
-                  type="text"
-                  placeholder="Асуулт"
+                  placeholder="Жишээ: Монгол улсын нийслэл юу вэ?"
                   required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Хариулт</label>
                 <input
                   name="answer"
-                  type="text"
-                  placeholder="Зөв хариу"
+                  placeholder="Жишээ: Улаанбаатар"
                   required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Оноо</label>
                 <input
                   name="points"
                   type="number"
-                  placeholder="Оноо"
-                  min="1"
+                  defaultValue={5}
+                  min={1}
+                  max={100}
                   required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
-                <button type="submit" className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">
-                  ➕ Нэмэх
-                </button>
-              </form>
-            </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
+              >
+                Асуулт нэмэх
+              </button>
+            </form>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
