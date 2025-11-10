@@ -48,13 +48,17 @@ INSTALLED_APPS = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Next.js
 ]
+CORS_ALLOW_CREDENTIALS = True  # ЗААВАЛ TRUE БАЙХ ЁСТОЙ
 
+# Session тохиргоо
+SESSION_COOKIE_SECURE = False  # development-д False
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_TRUSTED_ORIGINS = ["http://localhost:3000"]
+AUTH_USER_MODEL = 'users.CustomUser'
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',    
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

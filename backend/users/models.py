@@ -7,7 +7,11 @@ class CustomUser(AbstractUser):
         ('student', 'student'),
         ('teacher', 'teacher'),
     )
-    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
+    user_type = models.CharField(
+        max_length=10,
+        choices=USER_TYPE_CHOICES,
+        default='student'
+    )
 
     # Давхардал арилгах
     groups = models.ManyToManyField(
@@ -20,3 +24,6 @@ class CustomUser(AbstractUser):
         related_name='custom_user_set',
         blank=True,
     )
+
+    def __str__(self):
+        return self.username
