@@ -14,13 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-# quiz_project/urls.py
+# backend/quiz_project/urls.py
 from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('questions.urls')),
-    path('api/', include('users.urls')),
-    path('api/', include('results.urls')),
+    path('api/', include('questions.urls')),           # Асуулт, ангилал
+    path('api/', include('users.urls')),               # Нэвтрэх, гарах (ШИНЭЭР НЭМЭГДСЭН)
 ]

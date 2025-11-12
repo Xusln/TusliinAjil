@@ -1,20 +1,33 @@
 # backend/questions/views.py
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db import models  # ЭНД НЭМЭХ ЁСТОЙ
+from rest_framework.exceptions import PermissionDenied
+from django.db import models
+from django.views.decorators.csrf import csrf_exempt  # ШИНЭЭР НЭМЭГДСЭН
+from django.utils.decorators import method_decorator  # ШИНЭЭР НЭМЭГДСЭН
 
-# ЗӨВ ИМПОРТ
 from .models import Question, Category
-from .serializers import QuestionSerializer, CategorySerializer  # ЭНД ЗӨВ БИЧСЭН
+from .serializers import QuestionSerializer, CategorySerializer
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Ангиллын статистик: асуултын тоо + нийт оноо"""
+        categories = Category.objects.annotate(
+            question_count=models.Count('question'),
+            total_points=models.Sum('question__points')
+        )
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data)
 
+
+@method_decorator(csrf_exempt, name='dispatch')  # CSRF-ГҮЙ АЖИЛЛАХ
 class QuestionViewSet(viewsets.ModelViewSet):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
@@ -28,20 +41,11 @@ class QuestionViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        # ЗӨВХӨН БАГШ нэмнэ
-        if not self.request.user.is_authenticated or self.request.user.user_type != 'teacher':
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Зөвхөн багш нэмэх боломжтой")
+        # ЗӨВХӨН БАГШ НЭМНЭ
+        if not hasattr(self.request.user, 'user_type') or self.request.user.user_type != 'teacher':
+            raise PermissionDenied("Зөвхөн багш асуулт нэмэх боломжтой")
 
-        category_name = serializer.validated_data.pop('category')['name']
+        # category нь string (name) ирж байна
+        category_name = serializer.validated_data.pop('category')
         category, _ = Category.objects.get_or_create(name=category_name)
         serializer.save(category=category)
-
-    @action(detail=False, methods=['get'])
-    def stats(self, request):
-        """Ангиллын статистик"""
-        categories = Category.objects.annotate(
-            question_count=models.Count('question'),
-            total_points=models.Sum('question__points')
-        )
-        return Response(CategorySerializer(categories, many=True).data)

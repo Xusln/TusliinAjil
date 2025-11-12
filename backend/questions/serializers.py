@@ -3,23 +3,20 @@ from rest_framework import serializers
 from .models import Question, Category
 
 class CategorySerializer(serializers.ModelSerializer):
-    question_count = serializers.SerializerMethodField()
+    question_count = serializers.IntegerField(read_only=True)
+    total_points = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'question_count']
+        fields = ['id', 'name', 'question_count', 'total_points']
 
-    def get_question_count(self, obj):
-        return obj.question_set.count()
 
 class QuestionSerializer(serializers.ModelSerializer):
-    category = serializers.CharField(source='category.name')
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = Question
-        fields = ['id', 'category', 'question', 'answer', 'points']
-
-    def create(self, validated_data):
-        category_name = validated_data.pop('category')['name']
-        category, _ = Category.objects.get_or_create(name=category_name)
-        return Question.objects.create(category=category, **validated_data)
+        fields = ['id', 'category', 'category_name', 'question', 'answer', 'points']
+        extra_kwargs = {
+            'category': {'write_only': True},  # POST-д category string ирнэ
+        }
