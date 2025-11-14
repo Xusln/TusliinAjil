@@ -1,33 +1,36 @@
 // src/lib/api.ts
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = 'http://localhost:8000/api';  // localhost!
+
+async function getCSRFToken(): Promise<string> {
+  const res = await fetch(`${API_BASE}/auth/csrf/`, { credentials: 'include' });
+  const data = await res.json();
+  return data.csrfToken;
+}
 
 export const api = {
-  // Нэвтрэх
   async login(username: string, password: string) {
-  const res = await fetch(`${API_BASE}/auth/login/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include', // sessionid cookie авна
-    body: JSON.stringify({ username, password }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Нэвтрэхэд алдаа гарлаа');
-
-  // localStorage-д зөвхөн user_type хадгална
-  localStorage.setItem('userType', data.user.user_type);
-  return data;
-},
-
-  // Гарах
-  async logout() {
-    await fetch(`${API_BASE}/auth/logout/`, {
+    const res = await fetch(`${API_BASE}/auth/login/`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
+      body: JSON.stringify({ username, password }),
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login алдаа');
+    localStorage.setItem('userType', data.user.user_type);
+    return data;
   },
 
-  // АНГИЛАЛ АВАХ
+  async logout() {
+    const csrfToken = await getCSRFToken();
+    await fetch(`${API_BASE}/auth/logout/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      credentials: 'include',
+    });
+    localStorage.removeItem('userType');
+  },
+
   async getCategories() {
     const res = await fetch(`${API_BASE}/categories/`, {
       credentials: 'include',
@@ -39,32 +42,27 @@ export const api = {
     return res.json();
   },
 
-  // АСУУЛТ АВАХ
   async getQuestions() {
     const res = await fetch(`${API_BASE}/questions/`, {
       credentials: 'include',
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Асуулт ачаалж чадсангүй');
-    }
+    if (!res.ok) throw new Error('Асуулт ачаалж чадсангүй');
     return res.json();
   },
 
-  // АСУУЛТ НЭМЭХ
   async addQuestion(data: { category: string; question: string; answer: string; points: number }) {
+    const csrfToken = await getCSRFToken();
     const res = await fetch(`${API_BASE}/questions/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
       credentials: 'include',
       body: JSON.stringify(data),
     });
-
     const responseData = await res.json();
-    if (!res.ok) {
-      const errorMsg = responseData.detail || responseData.error || 'Асуулт нэмэхэд алдаа гарлаа';
-      throw new Error(errorMsg);
-    }
+    if (!res.ok) throw new Error(responseData.detail || 'Асуулт нэмэхэд алдаа гарлаа');
     return responseData;
   },
 };

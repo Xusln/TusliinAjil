@@ -12,10 +12,8 @@ export default function Dashboard() {
   const [currentView, setCurrentView] = useState<'categories' | 'quiz' | 'add'>('categories');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // ЭНД ФУНКЦУУДЫГ БИЧНЭ (useEffect-н өмнө)
   const handleLogout = async () => {
     try {
       await api.logout();
@@ -53,40 +51,37 @@ export default function Dashboard() {
     }
   };
 
-// src/app/dashboard/page.tsx
-useEffect(() => {
-  const initAuth = async () => {
-    const savedType = localStorage.getItem('userType') as 'teacher' | 'student' | null;
+  useEffect(() => {
+    const initAuth = async () => {
+      const savedType = localStorage.getItem('userType');
+      if (!savedType) {
+        router.push('/auth/login');
+        return;
+      }
 
-    // 1. localStorage-д userType байхгүй → login руу
-    if (!savedType) {
-      router.push('/auth/login');
-      return;
-    }
+      try {
+        setUserType(savedType as 'teacher' | 'student');
 
-    // 2. userType байгаа → шууд хэрэглэнэ (сервер шалгахгүй)
-    setUserType(savedType);
+        // api.ts дотор localhost ашиглаж байгаа эсэх шалга
+        const [cats, qs] = await Promise.all([
+          api.getCategories(),
+          api.getQuestions(),
+        ]);
 
-    try {
-      // Мэдээлэл ачаалах (session байгаа бол ажиллана, байхгүй бол алдаа гарна)
-      const [cats, qs] = await Promise.all([
-        api.getCategories(),
-        api.getQuestions(),
-      ]);
-      setCategories(cats);
-      setQuestions(qs);
-    } catch (err: any) {
-      // Сервер алдаа → хэрэглэгчийг харахыг зөвшөөрнө
-      setError(err.message || 'Сервертэй холбогдохгүй байна');
-    } finally {
-      setLoading(false);
-    }
-  };
+        setCategories(cats);
+        setQuestions(qs);
+      } catch (err: any) {
+        console.error('Dashboard init failed:', err);
+        localStorage.removeItem('userType');
+        router.push('/auth/login');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  initAuth();
-}, [router]);
+    initAuth();
+  }, [router]);
 
-  // АЧААЛЖ БАЙГАА
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -95,33 +90,9 @@ useEffect(() => {
     );
   }
 
-  // АЛДАА
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-red-50">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-3">Алдаа гарлаа</h2>
-          <p className="text-gray-700 mb-5">{error}</p>
-          <button
-            onClick={() => {
-              localStorage.removeItem('userType');
-              router.push('/auth/login');
-            }}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            Дахин нэвтрэх
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // UI — ЭНД `handleLogout`, `handleAddQuestion` ашиглана
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-
-        {/* HEADER */}
         <header className="bg-white p-5 rounded-xl shadow-md mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Brainova Quiz</h1>
           <div className="flex items-center gap-3">
@@ -131,7 +102,7 @@ useEffect(() => {
               {userType === 'teacher' ? 'Багш' : 'Сурагч'}
             </span>
             <button
-              onClick={handleLogout} // ЭНД АШИГЛАНА
+              onClick={handleLogout}
               className="bg-red-500 text-white px-5 py-2 rounded-lg hover:bg-red-600 transition transform hover:scale-105"
             >
               Гарах
@@ -139,7 +110,6 @@ useEffect(() => {
           </div>
         </header>
 
-        {/* АНГИЛАЛ ХАРАХ */}
         {currentView === 'categories' && (
           <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -181,7 +151,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* КВИЗ ХАРАХ */}
         {currentView === 'quiz' && (
           <div>
             <button
@@ -216,7 +185,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* АСУУЛТ НЭМЭХ */}
         {currentView === 'add' && userType === 'teacher' && (
           <div className="max-w-2xl mx-auto">
             <button

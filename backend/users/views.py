@@ -1,44 +1,44 @@
-# backend/users/views.py
-from django.contrib.auth import authenticate, login, logout
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
 import json
+from django.http import JsonResponse
+from django.contrib.auth import authenticate, login, logout
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.contrib.auth.decorators import login_required
 
+# CSRF cookie өгөх
+@ensure_csrf_cookie
+def csrf_view(request):
+    return JsonResponse({'csrfToken': request.META.get('CSRF_COOKIE', '')})
+
+# Login
 @csrf_exempt
-@api_view(['POST'])
-@permission_classes([AllowAny])
 def login_view(request):
-    try:
-        data = json.loads(request.body)
-        username = data.get('username')
-        password = data.get('password')
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            password = data.get('password')
+            if not username or not password:
+                return JsonResponse({'success': False, 'error': 'Нэр болон нууц үг шаардлагатай'}, status=400)
+            user = authenticate(request, username=username, password=password)
+            if user:
+                login(request, user)  # sessionid cookie үүсгэнэ
+                return JsonResponse({
+                    'success': True,
+                    'user': {
+                        'id': user.id,
+                        'username': user.username,
+                        'user_type': getattr(user, 'user_type', 'student')
+                    }
+                })
+            return JsonResponse({'success': False, 'error': 'Буруу нэр эсвэл нууц үг'}, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'JSON формат буруу байна'}, status=400)
+    return JsonResponse({'detail': 'POST method шаардлагатай'}, status=405)
 
-        if not username or not password:
-            return Response({'error': 'Нэр болон нууц үг шаардлагатай'}, status=400)
-
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            return Response({
-                'success': True,
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'user_type': getattr(user, 'user_type', 'student')
-                }
-            })
-        else:
-            return Response({'error': 'Буруу нэр эсвэл нууц үг'}, status=400)
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
+# Logout
 @csrf_exempt
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
 def logout_view(request):
-    logout(request)
-    return Response({'success': True})
+    if request.method == 'POST':
+        logout(request)
+        return JsonResponse({'success': True})
+    return JsonResponse({'detail': 'POST method шаардлагатай'}, status=405)
