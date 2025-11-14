@@ -185,49 +185,85 @@ export default function Dashboard() {
           </div>
         )}
 
-        {currentView === 'add' && userType === 'teacher' && (
-          <div className="max-w-2xl mx-auto">
-            <button
-              onClick={() => setCurrentView('categories')}
-              className="mb-6 text-blue-600 hover:underline flex items-center gap-1 font-medium"
-            >
-              ← Буцах
-            </button>
+{currentView === 'add' && userType === 'teacher' && (
+  <div className="max-w-2xl mx-auto">
+    <button
+      onClick={() => setCurrentView('categories')}
+      className="mb-6 text-blue-600 hover:underline flex items-center gap-1 font-medium"
+    >
+      ← Буцах
+    </button>
 
-            <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-              <h2 className="text-2xl font-bold text-gray-800 mb-7 text-center">Шинэ асуулт нэмэх</h2>
+    <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+      <h2 className="text-2xl font-bold text-gray-800 mb-7 text-center">Шинэ асуулт нэмэх</h2>
 
-              <form onSubmit={handleAddQuestion} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Ангилал</label>
-                  <input name="category" type="text" placeholder="Жишээ: Түүх" required className="w-full px-4 py-3 border rounded-lg" />
-                </div>
+      <form onSubmit={handleAddQuestion} className="space-y-6">
+        {/* АНГИЛАЛ DROPDOWN */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Ангилал</label>
+          <select
+            name="category"
+            required
+            className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            defaultValue=""
+          >
+            <option value="" disabled>Ангилал сонгоно уу</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name} ({cat.question_count ?? 0} асуулт)
+              </option>
+            ))}
+          </select>
+        </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Асуулт</label>
-                  <textarea name="question" placeholder="Жишээ: ..." required rows={3} className="w-full px-4 py-3 border rounded-lg resize-none" />
-                </div>
+        {/* АСУУЛТ */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Асуулт</label>
+          <textarea
+            name="question"
+            placeholder="Жишээ: Монголын анхны нийслэл хаана байсан бэ?"
+            required
+            rows={3}
+            className="w-full px-4 py-3 border rounded-lg resize-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Хариулт</label>
-                  <input name="answer" type="text" placeholder="Жишээ: ..." required className="w-full px-4 py-3 border rounded-lg" />
-                </div>
+        {/* ХАРИУЛТ */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Хариулт</label>
+          <input
+            name="answer"
+            type="text"
+            placeholder="Жишээ: Хархорин"
+            required
+            className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500"
+          />
+        </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Оноо</label>
-                  <input name="points" type="number" min="1" max="100" defaultValue={10} required className="w-full px-4 py-3 border rounded-lg" />
-                </div>
+        {/* ОНОО */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Оноо</label>
+          <input
+            name="points"
+            type="number"
+            min="1"
+            max="100"
+            defaultValue={10}
+            required
+            className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500"
+          />
+        </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3.5 rounded-lg hover:from-green-600 hover:to-green-700 transition transform hover:scale-105 shadow-md"
-                >
-                  Асуулт нэмэх
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        <button
+          type="submit"
+          className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3.5 rounded-lg hover:from-green-600 hover:to-green-700 transition transform hover:scale-105 shadow-md"
+        >
+          Асуулт нэмэх
+        </button>
+      </form>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
