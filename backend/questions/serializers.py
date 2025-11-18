@@ -1,14 +1,13 @@
 from rest_framework import serializers
 from .models import Question, Category
 
-# Ангиллын serializer
 class CategorySerializer(serializers.ModelSerializer):
-    question_count = serializers.IntegerField(read_only=True)  # annotate-аар ирэх
-    total_points = serializers.IntegerField(read_only=True)    # annotate-аар ирэх
+    category = serializers.CharField(write_only=True)  # ← ЭНД CharField болгоно!
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
-        model = Category
-        fields = ['id', 'name', 'question_count', 'total_points']
+        model = Question
+        fields = ['id', 'category', 'category_name', 'question', 'answer', 'points']
 
 
 # Асуултын serializer
