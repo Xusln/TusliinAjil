@@ -12,8 +12,8 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ValidationError as DRFValidationError  # эсвэл:
 from rest_framework import serializers  # ← ЭНД НЭМЭХ!!
 
-from .models import Question, Category
-from .serializers import QuestionSerializer, CategorySerializer
+from .models import Question, Category, Result
+from .serializers import QuestionSerializer, CategorySerializer, ResultSerializer
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -79,3 +79,39 @@ class QuestionViewSet(viewsets.ModelViewSet):
         if getattr(self.request.user, 'user_type', None) != 'teacher':
             raise PermissionDenied("Зөвхөн багш устгах боломжтой")
         instance.delete()
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ResultViewSet(viewsets.ModelViewSet):
+    queryset = Result.objects.all()
+    serializer_class = ResultSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Зөвхөн өөрийнхөө хариултыг харна
+        return self.queryset.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        question_id = serializer.validated_data['question'].id
+        selected_answer = serializer.validated_data['selected_answer'].strip()
+
+        try:
+            question = Question.objects.get(id=question_id)
+        except Question.DoesNotExist:
+            raise serializers.ValidationError({"question": "Асуулт олдсонгүй"})
+
+        # Өмнө хариулсан эсэх
+        if Result.objects.filter(user=user, question=question).exists():
+            raise serializers.ValidationError({"detail": "Та энэ асуултанд аль хэдийн хариулсан байна"})
+
+        # Зөв эсэх шалгах
+        is_correct = selected_answer.lower() == question.answer.strip().lower()
+        points_earned = question.points if is_correct else 0
+
+        # Хадгалах
+        serializer.save(
+            user=user,
+            is_correct=is_correct,
+            points_earned=points_earned
+        )
