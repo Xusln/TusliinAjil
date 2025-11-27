@@ -65,4 +65,29 @@ export const api = {
     if (!res.ok) throw new Error(responseData.detail || 'Асуулт нэмэхэд алдаа гарлаа');
     return responseData;
   },
+
+
+  async register(username: string, password: string, user_type: 'student' | 'teacher' = 'student') {
+    const csrfToken = await getCSRFToken(); // CSRF авах
+
+    const res = await fetch(`${API_BASE}/auth/register/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ username, password, user_type }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Бүртгэл амжилтгүй боллоо');
+    }
+
+    // Амжилттай бүртгэгдвэл backend автоматаар login хийж өгнө
+    localStorage.setItem('userType', data.user.user_type);
+    return data;
+  },
 };

@@ -15,6 +15,7 @@ from rest_framework import serializers  # ← ЭНД НЭМЭХ!!
 from .models import Question, Category, Result
 from .serializers import QuestionSerializer, CategorySerializer, ResultSerializer
 
+from quiz_project.utils.auth import CsrfExemptSessionAuthentication
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     # Статистик шууд queryset-д хийж болно → @action устгаж болно
@@ -27,6 +28,8 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class QuestionViewSet(viewsets.ModelViewSet):
+    authentication_classes = [CsrfExemptSessionAuthentication]
+    permission_classes = [IsAuthenticated]
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
     permission_classes = [IsAuthenticated]
@@ -83,6 +86,8 @@ class QuestionViewSet(viewsets.ModelViewSet):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class ResultViewSet(viewsets.ModelViewSet):
+    authentication_classes = [CsrfExemptSessionAuthentication]
+    permission_classes = [IsAuthenticated]
     queryset = Result.objects.all()
     serializer_class = ResultSerializer
     permission_classes = [IsAuthenticated]
@@ -102,8 +107,8 @@ class ResultViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"question": "Асуулт олдсонгүй"})
 
         # Өмнө хариулсан эсэх
-        if Result.objects.filter(user=user, question=question).exists():
-            raise serializers.ValidationError({"detail": "Та энэ асуултанд аль хэдийн хариулсан байна"})
+ #       if Result.objects.filter(user=user, question=question).exists():
+  #          raise serializers.ValidationError({"detail": "Та энэ асуултанд аль хэдийн хариулсан байна"})
 
         # Зөв эсэх шалгах
         is_correct = selected_answer.lower() == question.answer.strip().lower()

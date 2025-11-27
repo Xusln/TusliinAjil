@@ -27,7 +27,7 @@ class Result(models.Model):
     answered_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'question')  # Нэг асуултанд нэг удаа хариулна
+#        unique_together = ('user', 'question')  # Нэг асуултанд нэг удаа хариулна
         ordering = ['-answered_at']
 
     def __str__(self):
