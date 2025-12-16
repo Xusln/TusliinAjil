@@ -10,21 +10,44 @@ async function getCSRFToken(): Promise<string> {
   return data.csrfToken || '';
 }
 
+type Subject = {
+  id: number;
+  name: string;
+  question_count?: number;
+  total_points?: number;
+};
+
+type Grade = {
+  id: number;
+  number: string | number;
+  subjects: Subject[];
+};
+
+type Question = {
+  id: number;
+  grade: number;
+  subject: number;
+  question: string;
+  answer: string;
+  points: number;
+};
+
 export default function Dashboard() {
   const [userType, setUserType] = useState<'teacher' | 'student' | null>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [currentView, setCurrentView] = useState<'categories' | 'quiz' | 'result' | 'add-question'>('categories');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentView, setCurrentView] = useState<'grades' | 'subjects' | 'quiz' | 'result' | 'add-question'>('grades');
+  const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [addingQuestion, setAddingQuestion] = useState(false);
 
-  // Шинэ асуулт нэмэх форм
   const [newQuestion, setNewQuestion] = useState({
-    category: '',
+    grade: '',
+    subject: '',
     question: '',
     answer: '',
     points: '10'
@@ -44,6 +67,28 @@ export default function Dashboard() {
     router.push('/auth/login');
   };
 
+  const fetchGradesAndQuestions = async () => {
+    try {
+      const [gradesRes, qsRes] = await Promise.all([
+        fetch('http://localhost:8000/api/grades/', { credentials: 'include' }),
+        fetch('http://localhost:8000/api/questions/', { credentials: 'include' })
+      ]);
+      console.log("RES ",qsRes)
+      if (!gradesRes.ok || !qsRes.ok) throw new Error();
+
+      const gradesData: Grade[] = await gradesRes.json();
+      const qsData: Question[] = await qsRes.json();
+
+      setGrades(gradesData);
+      setQuestions(qsData);
+    } catch {
+      localStorage.removeItem('userType');
+      router.push('/auth/login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem('userType');
@@ -51,51 +96,23 @@ export default function Dashboard() {
         return router.push('/auth/login');
       }
       setUserType(saved as 'teacher' | 'student');
-
-      try {
-        const [catsRes, qsRes] = await Promise.all([
-          fetch('http://localhost:8000/api/categories/', { credentials: 'include' }),
-          fetch('http://localhost:8000/api/questions/', { credentials: 'include' })
-        ]);
-
-        if (!catsRes.ok || !qsRes.ok) throw new Error();
-
-        const cats = await catsRes.json();
-        const qs = await qsRes.json();
-
-        setCategories(cats);
-        setQuestions(qs);
-      } catch {
-        localStorage.removeItem('userType');
-        router.push('/auth/login');
-      } finally {
-        setLoading(false);
-      }
+      await fetchGradesAndQuestions();
     };
     init();
   }, [router]);
 
-  // Шалгалт дуусгах
   const submitQuiz = async () => {
     if (Object.keys(answers).length === 0) return alert('Ядаж нэг асуултад хариулна уу!');
-
     setSubmitting(true);
 
-    const csrfToken = await getCSRFToken();
-
     try {
+      const csrfToken = await getCSRFToken();
       const promises = Object.entries(answers).map(([qid, ans]) =>
         fetch('http://localhost:8000/api/results/', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-          },
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
           credentials: 'include',
-          body: JSON.stringify({
-            question: Number(qid),
-            selected_answer: ans.trim(),
-          }),
+          body: JSON.stringify({ question: Number(qid), selected_answer: ans.trim() })
         }).then(async r => {
           const data = await r.json();
           if (!r.ok) throw new Error(data.detail || 'Алдаа гарлаа');
@@ -104,9 +121,8 @@ export default function Dashboard() {
       );
 
       const results = await Promise.all(promises);
-
       const correct = results.filter(r => r.is_correct).length;
-      const totalQuestions = questions.filter(q => q.category_name === selectedCategory).length;
+      const totalQuestions = questions.filter(q => q.subject === selectedSubject).length;
       const totalPoints = results.reduce((s, r) => s + (Number(r.points_earned) || 0), 0);
 
       setResult({
@@ -114,12 +130,8 @@ export default function Dashboard() {
         totalQuestions,
         percentage: totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0,
         totalPoints,
-        details: results.map(r => ({
-          ...r,
-          questionObj: questions.find(q => q.id === r.question)
-        }))
+        details: results.map(r => ({ ...r, questionObj: questions.find(q => q.id === r.question) }))
       });
-
       setCurrentView('result');
     } catch (err: any) {
       alert('Алдаа: ' + err.message);
@@ -134,324 +146,227 @@ export default function Dashboard() {
     setCurrentView('quiz');
   };
 
-  // ШИНЭ АСУУЛТ НЭМЭХ
-  const handleAddQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newQuestion.category || !newQuestion.question.trim() || !newQuestion.answer.trim()) {
-      return alert('Бүх талбарыг бөглөнө уу!');
-    }
+  // newQuestion.subject нь Subject ID-г агуулна
+const handleAddQuestion = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!newQuestion.grade || !newQuestion.subject || !newQuestion.question.trim() || !newQuestion.answer.trim()) {
+    return alert('Бүх талбарыг бөглөнө үү!');
+  }
 
-    setAddingQuestion(true);
-    try {
-      const csrfToken = await getCSRFToken();
-      const res = await fetch('http://localhost:8000/api/questions/', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify({
-          category: newQuestion.category, // ID илгээнэ
-          question: newQuestion.question.trim(),
-          answer: newQuestion.answer.trim(),
-          points: Number(newQuestion.points) || 10,
-        }),
-      });
+setAddingQuestion(true);
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Асуулт нэмэхэд алдаа гарлаа');
-      }
+try {
+  const csrfToken = await getCSRFToken();
 
-      alert('Амжилттай нэмэгдлээ!');
-
-      // Форм цэвэрлэх + шинэчлэх
-      setNewQuestion({ category: '', question: '', answer: '', points: '10' });
-      setCurrentView('categories');
-
-      // Дахин ачаалж, тоо шинэчлэгдэнэ
-      const [catsRes, qsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/categories/', { credentials: 'include' }),
-        fetch('http://localhost:8000/api/questions/', { credentials: 'include' })
-      ]);
-      setCategories(await catsRes.json());
-      setQuestions(await qsRes.json());
-
-    } catch (err: any) {
-      alert('Алдаа: ' + err.message);
-    } finally {
-      setAddingQuestion(false);
-    }
+  const payload = {
+    grade: Number(newQuestion.grade),
+    subject: Number(newQuestion.subject),
+    question: newQuestion.question.trim(),
+    answer: newQuestion.answer.trim(),
+    points: Number(newQuestion.points) || 10,
   };
 
-  const currentQuestions = questions.filter(q => q.category_name === selectedCategory);
+  console.log("📦 Илгээх өгөгдөл:", payload);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
-        <div className="text-4xl font-bold text-purple-700 animate-pulse">Ачаалж байна...</div>
-      </div>
-    );
+  const res = await fetch("http://localhost:8000/api/questions/", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  console.log("📥 Status:", res.status);
+
+  // ⛔ JSON биш HTML буцааж байвал JSON.parse задрана → error
+  const raw = await res.text();
+  console.log("📄 Backend Raw Response:", raw);
+
+  if (!res.ok) {
+    throw new Error("Server error: " + raw);
   }
+
+  alert("Амжилттай нэмэгдлээ!");
+  setNewQuestion({
+    grade: "",
+    subject: "",
+    question: "",
+    answer: "",
+    points: "10",
+  });
+
+  await fetchGradesAndQuestions();
+  setCurrentView("grades");
+
+} catch (err: any) {
+  console.error("❌ Frontend Error:", err);
+  alert("Алдаа: " + err.message);
+} finally {
+  setAddingQuestion(false);
+}
+
+};
+
+  const currentQuestions = questions.filter(q => q.subject === selectedSubject);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-4xl font-bold">Ачаалж байна...</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
 
         {/* HEADER */}
-        <header className="bg-white/90 backdrop-blur-lg rounded-3xl shadow-2xl p-8 mb-10 border border-purple-100">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <h1 className="text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Brainova Quiz
-            </h1>
-            <div className="flex items-center gap-6">
-              <span className={`px-10 py-4 rounded-full text-white text-xl font-bold shadow-lg ${
-                userType === 'teacher' ? 'bg-emerald-600' : 'bg-indigo-600'
-              }`}>
-                {userType === 'teacher' ? 'БАГШ' : 'СУРАГЧ'}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-2xl font-bold text-xl shadow-lg transition transform hover:scale-105"
-              >
-                Гарах
-              </button>
-            </div>
+        <header className="bg-white/90 backdrop-blur-lg rounded-3xl shadow-2xl p-8 mb-10 border border-purple-100 flex justify-between items-center">
+          <h1 className="text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Brainova Quiz</h1>
+          <div className="flex items-center gap-6">
+            <span className={`px-8 py-3 rounded-full text-white font-bold text-xl ${userType === 'teacher' ? 'bg-emerald-600' : 'bg-indigo-600'}`}>{userType === 'teacher' ? 'БАГШ' : 'СУРАГЧ'}</span>
+            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-2xl font-bold">Гарах</button>
           </div>
         </header>
 
-        {/* БАГШИД ЗОРИУЛСАН ТОВЧ */}
-        {userType === 'teacher' && currentView === 'categories' && (
-          <div className="text-right mb-10">
-            <button
-              onClick={() => setCurrentView('add-question')}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-10 py-5 rounded-2xl text-2xl font-bold shadow-2xl transform hover:scale-110 transition"
-            >
-              + Шинэ асуулт нэмэх
-            </button>
-          </div>
-        )}
+        {/* GRADE-LIST */}
+        {currentView === 'grades' && (
+          <div>
+            <h2 className="text-4xl font-bold mb-8 text-center">Анги сонгоно уу</h2>
 
-        {/* АНГИЛАЛУУД */}
-        {currentView === 'categories' && (
-          <div className="text-center">
-            <h2 className="text-4xl font-bold mb-12 text-gray-800">
-              {userType === 'teacher' ? 'Ангилал удирдах • Шалгалт өгөх' : 'Шалгалтын ангилал сонгоно уу'}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
-              {categories.map(cat => (
-                <div
-                  key={cat.id}
-                  onClick={() => {
-                    setSelectedCategory(cat.name);
-                    setAnswers({});
-                    setResult(null);
-                    setCurrentView('quiz');
-                  }}
-                  className="bg-white rounded-3xl p-12 text-center shadow-2xl cursor-pointer transform hover:scale-110 hover:shadow-3xl transition-all duration-300 border-4 border-transparent hover:border-purple-400"
+            {/* Add Question Button */}
+            {userType === 'teacher' && (
+              <div className="text-center mb-6">
+                <button onClick={() => setCurrentView('add-question')} className="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold">
+                  Шинэ асуулт нэмэх
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {grades.map((grade: Grade) => (
+                <div key={grade.id} className="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer transform hover:scale-105 text-center"
+                  onClick={() => { setSelectedGrade(grade.id); setCurrentView('subjects'); }}
                 >
-                  <h3 className="text-3xl font-bold mb-6 text-gray-800">{cat.name}</h3>
-                  <div className="text-6xl font-extrabold text-purple-600 mb-2">
-                    {cat.question_count || 0}
-                  </div>
-                  <p className="text-xl text-gray-600">асуулт</p>
-                  <p className="text-lg text-green-600 font-semibold mt-4">{cat.total_points || 0} оноо</p>
+                  <h3 className="text-3xl font-bold mb-4">Анги {grade.number}</h3>
+                  <p className="text-xl text-gray-600">{grade.subjects.length} Ангилал</p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* КВИЗ */}
+        {/* SUBJECT-LIST */}
+        {currentView === 'subjects' && selectedGrade !== null && (
+          <div>
+            <button onClick={() => setCurrentView('grades')} className="mb-6 text-indigo-600 font-bold">← Буцах</button>
+            <h2 className="text-4xl font-bold mb-8 text-center">Анги {grades.find((g: Grade) => g.id === selectedGrade)?.number} - Ангилал сонгоно уу</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {grades.find((g: Grade) => g.id === selectedGrade)?.subjects.map((sub: Subject) => (
+                <div key={sub.id} className="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer transform hover:scale-105 text-center"
+                  onClick={() => { setSelectedSubject(sub.id); setCurrentView('quiz'); setAnswers({}); setResult(null); }}
+                >
+                  <h3 className="text-2xl font-bold mb-4">{sub.name}</h3>
+                  <p className="text-xl text-gray-600">{sub.question_count || 0} асуулт</p>
+                  <p className="text-lg text-green-600 font-semibold mt-2">{sub.total_points || 0} оноо</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* QUIZ */}
         {currentView === 'quiz' && (
           <div>
-            <button
-              onClick={() => setCurrentView('categories')}
-              className="mb-8 text-indigo-600 hover:text-indigo-800 font-bold text-xl"
-            >
-              ← Буцах
-            </button>
-
-            <h2 className="text-5xl font-extrabold text-center mb-12 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {selectedCategory}
+            <button onClick={() => setCurrentView('subjects')} className="mb-8 text-indigo-600 font-bold">← Буцах</button>
+            <h2 className="text-4xl font-bold mb-8 text-center">
+              {grades.find((g: Grade) => g.id === selectedGrade)?.number} - {grades.find((g: Grade) => g.id === selectedGrade)?.subjects.find((s: Subject) => s.id === selectedSubject)?.name}
             </h2>
-
-            <p className="text-center text-xl text-gray-700 mb-10">
-              Нийт <strong className="text-purple-600">{currentQuestions.length}</strong> асуулт
-            </p>
 
             <div className="space-y-12 max-w-5xl mx-auto">
               {currentQuestions.map((q, i) => (
                 <div key={q.id} className="bg-white rounded-3xl shadow-2xl p-10 border-4 border-purple-100">
-                  <div className="flex justify-between items-center mb-8">
-                    <span className="text-2xl font-bold text-purple-600 bg-purple-100 px-6 py-3 rounded-full">
-                      Асуулт {i + 1}
-                    </span>
-                    <span className="text-3xl font-extrabold text-green-600">{q.points} оноо</span>
+                  <div className="flex justify-between items-center mb-6">
+                    <span className="text-2xl font-bold text-purple-600">Асуулт {i + 1}</span>
+                    <span className="text-xl font-bold text-green-600">{q.points} оноо</span>
                   </div>
-                  <p className="text-2xl font-medium text-gray-800 mb-8">{q.question}</p>
-                  <input
-                    type="text"
-                    placeholder="Хариултаа энд бичнэ үү..."
-                    value={answers[q.id] || ''}
-                    onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                    className="w-full px-8 py-5 text-xl border-4 border-gray-300 rounded-2xl focus:border-purple-500 outline-none transition"
+                  <p className="text-xl text-gray-800 mb-4">{q.question}</p>
+                  <input type="text" value={answers[q.id] || ''} disabled={userType==='teacher'}
+                    placeholder={userType==='teacher' ? "Багшийн горим" : "Хариулт"} 
+                    onChange={(e)=> setAnswers(prev => ({...prev, [q.id]: e.target.value}))}
+                    className="w-full px-4 py-3 border-2 rounded-lg outline-none focus:border-purple-500"
                   />
                 </div>
               ))}
             </div>
 
-            <div className="text-center mt-16">
-              <button
-                onClick={submitQuiz}
-                disabled={submitting}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-24 py-10 rounded-3xl text-4xl font-extrabold shadow-2xl transform hover:scale-110 transition disabled:opacity-50"
-              >
-                {submitting ? 'Боловсруулж байна...' : 'Дуусгах → Үр дүнг харах'}
+            <div className="text-center mt-12">
+              <button onClick={submitQuiz} disabled={submitting || userType==='teacher'} className="bg-purple-600 text-white px-10 py-5 rounded-xl text-xl font-bold">
+                {submitting ? 'Боловсруулж байна...' : 'Дуусгах'}
               </button>
             </div>
           </div>
         )}
 
-        {/* ҮР ДҮН */}
-        {currentView === 'result' && result && (
-          <div className="max-w-5xl mx-auto text-center">
-            <h2 className="text-7xl font-extrabold mb-16 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Таны үр дүн
-            </h2>
-            <div className="bg-white rounded-3xl shadow-3xl p-20 mb-16 border-8 border-purple-200">
-              <div className="text-9xl font-extrabold mb-8"
-                style={{ color: result.percentage >= 80 ? '#10b981' : result.percentage >= 60 ? '#f59e0b' : '#ef4444' }}>
-                {result.percentage}%
-              </div>
-              <p className="text-5xl mb-8 text-gray-700">
-                <strong className="text-purple-600">{result.correct}</strong> зөв / {result.totalQuestions} асуултаас
-              </p>
-              <p className="text-7xl font-extrabold text-green-600">
-                +{result.totalPoints} оноо
-              </p>
-            </div>
+        {/* RESULT */}
+        {currentView === 'result' && result ? (
+  <div className="max-w-4xl mx-auto">
+    <h2 className="text-4xl font-bold mb-8 text-center">Таны үр дүн</h2>
 
-            <h3 className="text-4xl font-bold mb-10">Нарийвчилсан хариулт</h3>
-            <div className="space-y-8">
-              {result.details.map((r: any) => (
-                <div key={r.question} className={`p-10 rounded-3xl shadow-xl border-4 text-left ${
-                  r.is_correct ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-400'
-                }`}>
-                  <p className="text-2xl font-bold mb-4">{r.questionObj?.question}</p>
-                  <p className="text-xl">
-                    Таны хариулт: <code className="bg-gray-200 px-4 py-2 rounded">{r.selected_answer}</code>
-                  </p>
-                  {!r.is_correct && (
-                    <p className="text-xl font-bold text-red-600 mt-4">
-                      Зөв хариулт: {r.correct_answer}
-                    </p>
-                  )}
-                  {r.is_correct && <p className="text-2xl font-bold text-green-600 mt-4">ЗӨВ!</p>}
-                </div>
-              ))}
-            </div>
+    <p className="text-2xl mb-4 text-center">
+      Зөв: {result?.correct ?? 0} / {result?.totalQuestions ?? 0}
+    </p>
+    <p className="text-2xl mb-8 text-center">
+      Нийт Оноо: {result?.totalPoints ?? 0}
+    </p>
 
-            <button
-              onClick={retryQuiz}
-              className="mt-20 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-32 py-12 rounded-3xl text-5xl font-extrabold shadow-3xl transform hover:scale-110 transition"
-            >
-              Дахин оролдох
-            </button>
-          </div>
-        )}
+    <div className="space-y-6">
+      {result?.details?.map((item: any, index: number) => (
+        <div key={index} className={`bg-white p-6 rounded-2xl shadow-lg border-l-8 ${item.is_correct ? 'border-green-500' : 'border-red-500'}`}>
+          <h3 className="text-xl font-bold mb-2">Асуулт {index + 1}</h3>
+          <p className="text-lg"><strong>Асуулт:</strong> {item.questionObj?.question}</p>
+          <p className="text-lg"><strong>Таны хариулт:</strong> {item.selected_answer}</p>
+          <p className="text-lg"><strong>Зөв хариулт:</strong> {item.questionObj?.answer}</p>
+          <p className={`text-lg font-bold mt-2 ${item.is_correct ? 'text-green-600' : 'text-red-600'}`}>
+            {item.is_correct ? 'ЗӨВ' : 'БУРУУ'}
+          </p>
+          <p className="text-lg">Авсан оноо: {item.points_earned}</p>
+        </div>
+      ))}
+    </div>
 
-        {/* ШИНЭ АСУУЛТ НЭМЭХ ФОРМ — DROPDOWN-ТОЙ */}
-        {currentView === 'add-question' && userType === 'teacher' && (
+    <div className="text-center mt-8">
+      <button onClick={retryQuiz} className="bg-green-600 text-white px-10 py-5 rounded-xl font-bold">
+        Дахин оролдох
+      </button>
+    </div>
+  </div>
+) : (
+  <div className="text-center text-xl text-gray-500 mt-10"></div>
+)}
+        {/* ADD QUESTION */}
+        {currentView==='add-question' && userType==='teacher' && (
           <div className="max-w-4xl mx-auto">
-            <button
-              onClick={() => setCurrentView('categories')}
-              className="mb-8 text-indigo-600 hover:text-indigo-800 font-bold text-xl flex items-center gap-2"
-            >
-              ← Буцах
-            </button>
+            <button onClick={()=>setCurrentView('grades')} className="mb-6 text-indigo-600 font-bold">← Буцах</button>
+            <form onSubmit={handleAddQuestion} className="space-y-6 bg-white rounded-3xl p-8 shadow-2xl border-4 border-emerald-200">
+              <h2 className="text-3xl font-bold mb-6">Шинэ асуулт нэмэх</h2>
 
-            <div className="bg-white rounded-3xl shadow-3xl p-16 border-8 border-emerald-200">
-              <h2 className="text-5xl font-extrabold text-center mb-16 text-emerald-700">
-                Шинэ асуулт нэмэх
-              </h2>
+              <select value={newQuestion.grade} onChange={(e)=>setNewQuestion(prev=>({...prev, grade:e.target.value, subject:''}))} required className="w-full p-4 border rounded-lg">
+                <option value="">Анги сонгоно уу</option>
+                {grades.map((g: Grade) => <option key={g.id} value={g.id}>{g.number}</option>)}
+              </select>
 
-              <form onSubmit={handleAddQuestion} className="space-y-12">
-                {/* АНГИЛАЛ DROPDOWN */}
-                <div>
-                  <label className="block text-2xl font-bold text-gray-700 mb-4">
-                    Ангилал сонгоно уу <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={newQuestion.category}
-                    onChange={(e) => setNewQuestion(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-8 py-5 text-xl border-4 border-gray-300 rounded-2xl focus:border-emerald-600 outline-none bg-white"
-                    required
-                  >
-                    <option value="">— Сонгоно уу —</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <select value={newQuestion.subject} onChange={(e)=>setNewQuestion(prev=>({...prev, subject:e.target.value}))} required className="w-full p-4 border rounded-lg">
+                <option value="">Ангилал сонгоно уу</option>
+                {grades.find((g: Grade) => g.id===Number(newQuestion.grade))?.subjects.map((s: Subject) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
 
-                {/* АСУУЛТ */}
-                <div>
-                  <label className="block text-2xl font-bold text-gray-700 mb-4">
-                    Асуулт <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    placeholder="Асуултаа энд бичнэ үү..."
-                    value={newQuestion.question}
-                    onChange={(e) => setNewQuestion(prev => ({ ...prev, question: e.target.value }))}
-                    rows={4}
-                    className="w-full px-8 py-6 text-xl border-4 border-gray-300 rounded-2xl focus:border-emerald-600 outline-none resize-none"
-                    required
-                  />
-                </div>
+              <textarea value={newQuestion.question} onChange={(e)=>setNewQuestion(prev=>({...prev, question:e.target.value}))} placeholder="Асуулт" required className="w-full p-4 border rounded-lg" />
+              <input value={newQuestion.answer} onChange={(e)=>setNewQuestion(prev=>({...prev, answer:e.target.value}))} placeholder="Зөв хариулт" required className="w-full p-4 border rounded-lg" />
+              <input value={newQuestion.points} onChange={(e)=>setNewQuestion(prev=>({...prev, points:e.target.value}))} placeholder="Оноо" type="number" className="w-full p-4 border rounded-lg" />
 
-                {/* ХАРИУЛТ */}
-                <div>
-                  <label className="block text-2xl font-bold text-gray-700 mb-4">
-                    Зөв хариулт <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Зөв хариултаа энд бичнэ үү"
-                    value={newQuestion.answer}
-                    onChange={(e) => setNewQuestion(prev => ({ ...prev, answer: e.target.value }))}
-                    className="w-full px-8 py-6 text-xl border-4 border-gray-300 rounded-2xl focus:border-emerald-600 outline-none"
-                    required
-                  />
-                </div>
-
-                {/* ОНОО */}
-                <div>
-                  <label className="block text-2xl font-bold text-gray-700 mb-4">Оноо (заавал биш)</label>
-                  <input
-                    type="number"
-                    value={newQuestion.points}
-                    onChange={(e) => setNewQuestion(prev => ({ ...prev, points: e.target.value }))}
-                    className="w-full px-8 py-6 text-xl border-4 border-gray-300 rounded-2xl focus:border-emerald-600 outline-none"
-                    min="1"
-                    placeholder="10"
-                  />
-                </div>
-
-                <div className="text-center pt-8">
-                  <button
-                    type="submit"
-                    disabled={addingQuestion}
-                    className="bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-32 py-12 rounded-3xl text-4xl font-extrabold shadow-3xl transform hover:scale-110 transition disabled:opacity-60"
-                  >
-                    {addingQuestion ? 'Нэмж байна...' : 'Асуулт нэмэх'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <button type="submit" disabled={addingQuestion} className="bg-emerald-600 text-white px-8 py-4 rounded-xl font-bold">{addingQuestion?'Нэмж байна...':'Асуулт нэмэх'}</button>
+            </form>
           </div>
         )}
+
       </div>
     </div>
   );

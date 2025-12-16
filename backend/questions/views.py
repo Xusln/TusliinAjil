@@ -1,82 +1,86 @@
-# backend/questions/views.py
 from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from django.db import models
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework import serializers
 
-# ЭНД НЭМЭХ ЭКСПОРТ!!!
-from rest_framework.exceptions import ValidationError as DRFValidationError  # эсвэл:
-from rest_framework import serializers  # ← ЭНД НЭМЭХ!!
-
-from .models import Question, Category, Result
-from .serializers import QuestionSerializer, CategorySerializer, ResultSerializer
-
+from .models import Question, Grade, Subject, Result
+from .serializers import QuestionSerializer, GradeSerializer, SubjectSerializer, ResultSerializer
 from quiz_project.utils.auth import CsrfExemptSessionAuthentication
 
-class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    # Статистик шууд queryset-д хийж болно → @action устгаж болно
-    queryset = Category.objects.annotate(
-        question_count=models.Count('questions'),  # related_name='questions' байвал
-        total_points=models.Sum('questions__points')
-    )
-    serializer_class = CategorySerializer
+
+# ===================== GRADE =====================
+class GradeViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    1–12 анги, дотор нь subjects-ийг read-only үзүүлнэ
+    """
+    queryset = Grade.objects.prefetch_related('subjects')
+    serializer_class = GradeSerializer
 
 
+# ===================== SUBJECT =====================
+class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Бүх subjects, question count-ийг read-only үзүүлнэ
+    """
+    queryset = Subject.objects.prefetch_related('questions')
+    serializer_class = SubjectSerializer
+
+
+# ===================== QUESTION =====================
 @method_decorator(csrf_exempt, name='dispatch')
 class QuestionViewSet(viewsets.ModelViewSet):
     authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [IsAuthenticated]
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = super().get_queryset()
-        category = self.request.query_params.get('category')
-        if category:
-            qs = qs.filter(category__name__icontains=category)
+        grade = self.request.query_params.get('grade')
+        subject = self.request.query_params.get('subject')
+        if grade:
+            qs = qs.filter(subject__grade__number=grade)
+        if subject:
+            qs = qs.filter(subject__name__icontains=subject)
         return qs
 
-    # ЭНД indent зөв байх ёстой!!!
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.is_authenticated:
-            raise PermissionDenied("Нэвтрэх шаардлагатай")
-        if getattr(user, 'user_type', None) != 'teacher':
+        if getattr(self.request.user, 'user_type', None) != 'teacher':
             raise PermissionDenied("Зөвхөн багш асуулт нэмэх боломжтой")
 
-        category_name = serializer.validated_data.pop('category', '').strip()
-        if not category_name:
-            raise serializers.ValidationError({"category": "Ангилал заавал оруулна уу"})
+        grade_number = self.request.data.get('grade')
+        if not grade_number:
+            raise serializers.ValidationError({"detail": "Grade заавал оруулна уу"})
 
-        category, _ = Category.objects.get_or_create(
-            name__iexact=category_name,
-            defaults={'name': category_name.title()}
-        )
+        grade, _ = Grade.objects.get_or_create(number=int(grade_number))
 
-        serializer.save(category=category)
+        # Subject-instance аль хэдийнээ validated_data дотор байна
+        subject = serializer.validated_data['subject']
+
+        if subject.grade != grade:
+            subject.grade = grade
+            subject.save()
+
+        serializer.save()
+
 
     def perform_update(self, serializer):
         if getattr(self.request.user, 'user_type', None) != 'teacher':
             raise PermissionDenied("Зөвхөн багш засварлах боломжтой")
 
-        category_name = serializer.validated_data.pop('category', None)
-        if category_name:
-            category_name = category_name.strip()
-            if category_name:
-                category, _ = Category.objects.get_or_create(
-                    name__iexact=category_name,
-                    defaults={'name': category_name.title()}
-                )
-                serializer.save(category=category)
-            else:
-                serializer.save()
-        else:
-            serializer.save()
+        grade_number = self.request.data.get('grade')
+
+        if grade_number:
+            grade, _ = Grade.objects.get_or_create(number=int(grade_number))
+            subject = serializer.validated_data.get('subject')
+            if subject and subject.grade != grade:
+                subject.grade = grade
+                subject.save()
+
+        serializer.save()
+
 
     def perform_destroy(self, instance):
         if getattr(self.request.user, 'user_type', None) != 'teacher':
@@ -84,13 +88,13 @@ class QuestionViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+# ===================== RESULT =====================
 @method_decorator(csrf_exempt, name='dispatch')
 class ResultViewSet(viewsets.ModelViewSet):
     authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [IsAuthenticated]
     queryset = Result.objects.all()
     serializer_class = ResultSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         # Зөвхөн өөрийнхөө хариултыг харна
@@ -106,15 +110,9 @@ class ResultViewSet(viewsets.ModelViewSet):
         except Question.DoesNotExist:
             raise serializers.ValidationError({"question": "Асуулт олдсонгүй"})
 
-        # Өмнө хариулсан эсэх
- #       if Result.objects.filter(user=user, question=question).exists():
-  #          raise serializers.ValidationError({"detail": "Та энэ асуултанд аль хэдийн хариулсан байна"})
-
-        # Зөв эсэх шалгах
         is_correct = selected_answer.lower() == question.answer.strip().lower()
         points_earned = question.points if is_correct else 0
 
-        # Хадгалах
         serializer.save(
             user=user,
             is_correct=is_correct,
