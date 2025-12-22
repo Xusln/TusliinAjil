@@ -1,26 +1,58 @@
-// src/app/auth/register/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api'; // Таны өмнө үүсгэсэн api.ts
 
 export default function Register() {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(''); // email
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [userType, setUserType] = useState<'student' | 'teacher'>('student');
+
+  // Багшийн нэмэлт талбарууд
+  const [grades, setGrades] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [selectedGradeId, setSelectedGradeId] = useState<string>('');
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+
   const router = useRouter();
+
+  // Анги, хичээлүүдийг ачаалах (public endpoint)
+ useEffect(() => {
+  const loadData = async () => {
+    setLoadingData(true);
+    try {
+      // api.ts ашиглан ачаална
+      const gradesData = await api.getGrades();
+      setGrades(gradesData);
+      console.log('Ачаалагдсан ангиуд:', gradesData);
+      const subjectsData = await api.getSubjects();
+      setSubjects(subjectsData);
+      console.log('Ачаалагдсан хичээлүүд:', subjectsData);
+    } catch (err: any) {
+      console.error('Өгөгдөл ачааллахад алдаа:', err);
+      setError('Анги, хичээлийг ачаалж чадсангүй. Сервер ажиллаж байгаа эсэхийг шалгана уу.');
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  loadData();
+}, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Шалгалт
+    // Ерөнхий шалгалт
     if (!username || !password || !fullName) {
-      return setError('Бүх талбарыг бөглөнө үү!');
+      return setError('Бүх үндсэн талбарыг бөглөнө үү!');
     }
     if (password !== confirmPassword) {
       return setError('Нууц үг таарахгүй байна!');
@@ -29,46 +61,47 @@ export default function Register() {
       return setError('Нууц үг дор хаяж 6 тэмдэгт байх ёстой!');
     }
     if (!username.includes('@')) {
-      return setError('И-мэйл хаяг оруулна уу (жишээ: name@gmail.com)');
+      return setError('Зөв и-мэйл хаяг оруулна уу (жишээ: name@gmail.com)');
+    }
+
+    // Багшийн хувьд нэмэлт шалгалт
+    if (userType === 'teacher') {
+      if (!selectedGradeId) {
+        return setError('Багш бол анги заавал сонгоно уу!');
+      }
+      if (selectedSubjectIds.length === 0) {
+        return setError('Багш бол дор хаяж 1 хичээл сонгоно уу!');
+      }
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8000/api/auth/register/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          username,
-          password,
-          full_name: fullName,
-          user_type: userType,
-        }),
-      });
+      await api.register(
+        username,
+        password,
+        userType,
+        userType === 'teacher' ? [parseInt(selectedGradeId)] : undefined,
+        userType === 'teacher' ? selectedSubjectIds.map(Number) : undefined
+      );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.detail || 'Бүртгэл амжилтгүй боллоо');
-      }
-
-      // Амжилттай бол нэвтрэх хуудас руу шилжүүлнэ
-      alert('Амжилттай бүртгүүллээ! Одоо нэвтэрнэ үү.');
+      alert('Амжилттай бүртгүүллээ! 🚀');
       router.push('/auth/login');
-
     } catch (err: any) {
-      setError(err.message || 'Сервертэй холбогдохгүй байна');
+      setError(err.message || 'Бүртгэл амжилтгүй боллоо. Дахин оролдоно уу.');
     } finally {
       setLoading(false);
     }
   };
 
+  // Тухайн ангийн хичээлүүдийг шүүх
+  const filteredSubjects = subjects.filter(
+    (subject: any) => subject.grade === parseInt(selectedGradeId)
+  );
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 p-4">
-      <div className="bg-white/90 backdrop-blur-sm p-10 rounded-3xl shadow-2xl w-full max-w-lg border border-purple-100">
+      <div className="bg-white/90 backdrop-blur-sm p-10 rounded-3xl shadow-2xl w-full max-w-2xl border border-purple-100 overflow-y-auto max-h-screen">
 
         <div className="text-center mb-8">
           <h1 className="text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
@@ -85,7 +118,7 @@ export default function Register() {
 
         <form onSubmit={handleRegister} className="space-y-6">
 
-          {/* Нэр */}
+          {/* Таны нэр */}
           <div>
             <label className="block text-lg font-semibold text-gray-700 mb-2">
               Таны нэр <span className="text-red-500">*</span>
@@ -150,8 +183,12 @@ export default function Register() {
             <label className="block text-lg font-semibold text-gray-700 mb-3">
               Та хэн бэ? <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center justify-center p-6 border-4 border-indigo-200 rounded-2xl cursor-pointer hover:border-indigo-500 transition has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50">
+            <div className="grid grid-cols-2 gap-6">
+              <label className={`flex flex-col items-center justify-center p-8 border-4 rounded-3xl cursor-pointer transition-all ${
+                userType === 'student' 
+                  ? 'border-indigo-600 bg-indigo-50 shadow-lg' 
+                  : 'border-indigo-200 hover:border-indigo-400'
+              }`}>
                 <input
                   type="radio"
                   name="userType"
@@ -160,13 +197,15 @@ export default function Register() {
                   onChange={() => setUserType('student')}
                   className="sr-only"
                 />
-                <div className="text-center">
-                  <div className="text-5xl mb-3">Student</div>
-                  <div className="text-xl font-bold text-indigo-700">Сурагч</div>
-                </div>
+                <div className="text-6xl mb-4">Student</div>
+                <div className="text-2xl font-bold text-indigo-700">Сурагч</div>
               </label>
 
-              <label className="flex items-center justify-center p-6 border-4 border-emerald-200 rounded-2xl cursor-pointer hover:border-emerald-500 transition has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
+              <label className={`flex flex-col items-center justify-center p-8 border-4 rounded-3xl cursor-pointer transition-all ${
+                userType === 'teacher' 
+                  ? 'border-emerald-600 bg-emerald-50 shadow-lg' 
+                  : 'border-emerald-200 hover:border-emerald-400'
+              }`}>
                 <input
                   type="radio"
                   name="userType"
@@ -175,19 +214,91 @@ export default function Register() {
                   onChange={() => setUserType('teacher')}
                   className="sr-only"
                 />
-                <div className="text-center">
-                  <div className="text-5xl mb-3">Teacher</div>
-                  <div className="text-xl font-bold text-emerald-700">Багш</div>
-                </div>
+                <div className="text-6xl mb-4">Teacher</div>
+                <div className="text-2xl font-bold text-emerald-700">Багш</div>
               </label>
             </div>
           </div>
 
+          {/* Багшийн нэмэлт хэсэг */}
+          {userType === 'teacher' && (
+            <div className="mt-8 p-8 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl border-2 border-emerald-200">
+              <h3 className="text-2xl font-bold text-emerald-800 text-center mb-6">
+                Та ямар анги, хичээл хариуцдаг вэ?
+              </h3>
+
+              {loadingData ? (
+                <p className="text-center text-gray-600">Анги, хичээл ачаалж байна...</p>
+              ) : (
+                <>
+                  {/* Анги сонгох */}
+                  <div className="mb-6">
+                    <label className="block text-lg font-semibold text-gray-800 mb-3">
+                      Анги сонгоно уу <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={selectedGradeId}
+                      onChange={(e) => {
+                        setSelectedGradeId(e.target.value);
+                        setSelectedSubjectIds([]); // шинэ анги сонгоход хичээл reset
+                      }}
+                      className="w-full px-6 py-4 text-lg border-2 border-emerald-300 rounded-xl focus:border-emerald-600 focus:outline-none"
+                      required
+                    >
+                      <option value="">— Анги сонгоно уу —</option>
+                      {grades.map((grade) => (
+                        <option key={grade.id} value={grade.number}>
+                          {grade.number}-р анги
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Хичээл сонгох */}
+                  {selectedGradeId && (
+                    <div>
+                      <label className="block text-lg font-semibold text-gray-800 mb-4">
+                        Хичээл сонгоно уу (олон сонгох боломжтой) <span className="text-red-500">*</span>
+                      </label>
+                      {filteredSubjects.length === 0 ? (
+                        <p className="text-orange-600 text-center py-4">Энэ ангид хичээл алга байна.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-64 overflow-y-auto pr-2">
+                          {filteredSubjects.map((subject: any) => (
+                            <label
+                              key={subject.id}
+                              className="flex items-center p-4 bg-white border-2 border-emerald-200 rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition"
+                            >
+                              <input
+                                type="checkbox"
+                                value={subject.id}
+                                checked={selectedSubjectIds.includes(subject.id.toString())}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedSubjectIds([...selectedSubjectIds, subject.id.toString()]);
+                                  } else {
+                                    setSelectedSubjectIds(selectedSubjectIds.filter(id => id !== subject.id.toString()));
+                                  }
+                                }}
+                                className="w-6 h-6 text-emerald-600 rounded focus:ring-emerald-500"
+                              />
+                              <span className="ml-4 text-lg font-medium">{subject.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {/* Бүртгүүлэх товч */}
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-2xl font-extrabold rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition disabled:opacity-70 disabled:cursor-not-allowed"
+            disabled={loading || loadingData}
+            className="w-full py-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-2xl font-extrabold rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
           >
             {loading ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
           </button>

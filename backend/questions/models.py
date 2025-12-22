@@ -22,13 +22,18 @@ class Subject(models.Model):
         return self.questions.aggregate(models.Sum('points'))['points__sum'] or 0
 
 
+# questions/models.py
 class Question(models.Model):
-    subject = models.ForeignKey(
-        Subject, on_delete=models.CASCADE, related_name='questions', null=True, blank=True
-    )
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='questions')
     question = models.TextField()
-    answer = models.TextField()
+    answer = models.CharField(max_length=10)  # 'A', 'B', 'C', 'D' эсвэл бусад
     points = models.PositiveIntegerField(default=10)
+
+    # БҮГД optional болгосон
+    option_a = models.CharField(max_length=255, blank=True, null=True)
+    option_b = models.CharField(max_length=255, blank=True, null=True)
+    option_c = models.CharField(max_length=255, blank=True, null=True)
+    option_d = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         return self.question[:50]

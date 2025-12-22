@@ -10,4 +10,11 @@ router.register(r'results', views.ResultViewSet, basename='results')
 
 urlpatterns = [
     path('', include(router.urls)),
+
+    # 🔥 Student total points (function-based view)
+    path(
+        'student/total-points/',
+        views.student_total_points,
+        name='student-total-points'
+    ),
 ]

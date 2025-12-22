@@ -17,13 +17,28 @@ class GradeSerializer(serializers.ModelSerializer):
         model = Grade
         fields = ['id', 'number', 'subjects']
 
+# questions/serializers.py
+from rest_framework import serializers
+from .models import Question, Subject, Grade
+
+# questions/serializers.py
 class QuestionSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     grade_number = serializers.IntegerField(source='subject.grade.number', read_only=True)
 
     class Meta:
         model = Question
-        fields = ['id', 'subject', 'subject_name', 'grade_number', 'question', 'answer', 'points']
+        fields = [
+            'id', 'subject', 'subject_name', 'grade_number',
+            'question', 'answer', 'points',
+            'option_a', 'option_b', 'option_c', 'option_d'
+        ]
+        extra_kwargs = {
+            'option_a': {'required': False, 'allow_blank': True},
+            'option_b': {'required': False, 'allow_blank': True},
+            'option_c': {'required': False, 'allow_blank': True},
+            'option_d': {'required': False, 'allow_blank': True},
+        }
 
 
 

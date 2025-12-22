@@ -8,24 +8,33 @@ from rest_framework import serializers
 from .models import Question, Grade, Subject, Result
 from .serializers import QuestionSerializer, GradeSerializer, SubjectSerializer, ResultSerializer
 from quiz_project.utils.auth import CsrfExemptSessionAuthentication
-
-
+from rest_framework.permissions import AllowAny
+from .models import Result
+from django.db.models import Sum  # ← Sum-ийн импорт
+from rest_framework.decorators import api_view, permission_classes  # ← api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated  # ← IsAuthenticated
+from rest_framework.response import Response  # ← Response
+from rest_framework import status
 # ===================== GRADE =====================
 class GradeViewSet(viewsets.ReadOnlyModelViewSet):
     """
     1–12 анги, дотор нь subjects-ийг read-only үзүүлнэ
+    Public: Нэвтрэх шаардлагагүй
     """
     queryset = Grade.objects.prefetch_related('subjects')
     serializer_class = GradeSerializer
+    permission_classes = [AllowAny]  # 🔥 ЭНД НЭМЭХ – Бүртгэлийн хуудас дээр ачаалахад зөвшөөрнө
 
 
 # ===================== SUBJECT =====================
 class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Бүх subjects, question count-ийг read-only үзүүлнэ
+    Public: Нэвтрэх шаардлагагүй
     """
     queryset = Subject.objects.prefetch_related('questions')
     serializer_class = SubjectSerializer
+    permission_classes = [AllowAny]
 
 
 # ===================== QUESTION =====================
@@ -118,3 +127,19 @@ class ResultViewSet(viewsets.ModelViewSet):
             is_correct=is_correct,
             points_earned=points_earned
         )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def student_total_points(request):
+    if request.user.user_type != 'student':
+        return Response(
+            {'error': 'Зөвхөн сурагч нар хандах боломжтой'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    total_points = Result.objects.filter(
+        user=request.user,
+        is_correct=True
+    ).aggregate(total=Sum('points_earned'))['total'] or 0
+
+    return Response({'total_points': total_points})

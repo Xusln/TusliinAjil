@@ -43,7 +43,6 @@ INSTALLED_APPS = [
 
     'users',
     'questions',
-    'results',
 ]
 CSRF_TRUSTED_ORIGINS = ["http://localhost:3000"]
 CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]

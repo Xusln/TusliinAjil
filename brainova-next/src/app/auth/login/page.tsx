@@ -1,5 +1,5 @@
-// src/app/auth/login/page.tsx
 'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -8,63 +8,106 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (type: 'student' | 'teacher') => {
+  const handleLogin = async () => {
     setError('');
+    setLoading(true);
+
+    // Үндсэн шалгалт
+    if (!username.trim()) {
+      setError('И-мэйл хаягаа оруулна уу');
+      setLoading(false);
+      return;
+    }
+    if (!password) {
+      setError('Нууц үгээ оруулна уу');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await api.login(username, password);
-      if (res.success && res.user?.user_type === type) {
-        localStorage.setItem('userType', type);
-        router.push('/dashboard');
+      const res = await api.login(username.trim(), password);
+
+      // Амжилттай нэвтрэхэд dashboard руу шилжинэ
+      router.push('/dashboard');
+    } catch (err: any) {
+      // Backend-ээс ирсэн алдааг хэрэглэгчдэд ээлтэй болгоно
+      if (err.message.includes('Буруу нэр эсвэл нууц үг')) {
+        setError('Таны нэр эсвэл нууц үг буруу байна');
+      } else if (err.message.includes('шаардлагатай')) {
+        setError('Нэр болон нууц үгээ бүрэн оруулна уу');
       } else {
-        setError('Буруу нэр, нууц үг эсвэл төрөл');
+        setError('Таны нэр эсвэл нууц үг буруу байна');
       }
-    } catch (err) {
-      setError('Сервертэй холбогдохгүй байна');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Brainova Quiz</h1>
-        <h2 className="text-xl text-center mb-6 text-gray-600">Нэвтрэх</h2>
+      <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-blue-100">
+        <h1 className="text-5xl font-extrabold text-center mb-8 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          Brainova Quiz
+        </h1>
+        <h2 className="text-2xl text-center mb-8 text-gray-700">Нэвтрэх</h2>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm text-center">
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl mb-6 text-center font-medium text-lg">
             {error}
           </div>
         )}
 
-        <input
-          type="text"
-          placeholder="me@gmail.com"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        />
-        <input
-          type="password"
-          placeholder="Нууц үг"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg mb-6 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        />
+        <div className="space-y-6">
+          <div>
+            <label className="block text-lg font-semibold text-gray-700 mb-2">
+              И-мэйл хаяг
+            </label>
+            <input
+              type="email"
+              placeholder="me@gmail.com"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none transition"
+              required
+            />
+          </div>
 
-        <div className="space-y-3">
+          <div>
+            <label className="block text-lg font-semibold text-gray-700 mb-2">
+              Нууц үг
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none transition"
+              required
+            />
+          </div>
+
           <button
-            onClick={() => handleLogin('student')}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+            onClick={handleLogin}
+            disabled={loading}
+            className="w-full py-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-2xl font-bold rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Сурагчаар нэвтрэх
+            {loading ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
           </button>
-          <button
-            onClick={() => handleLogin('teacher')}
-            className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
-          >
-            Багшаар нэвтрэх
-          </button>
+        </div>
+
+        <div className="text-center mt-8">
+          <p className="text-gray-600 text-lg">
+            Бүртгэлгүй юу?{' '}
+            <button
+              onClick={() => router.push('/auth/register')}
+              className="text-blue-600 font-bold hover:underline"
+            >
+              Бүртгүүлэх
+            </button>
+          </p>
         </div>
       </div>
     </div>
