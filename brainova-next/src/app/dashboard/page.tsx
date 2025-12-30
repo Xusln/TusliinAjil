@@ -311,6 +311,27 @@ const fetchTotalPoints = async () => {
 };
   const animatedPoints = useCountUp(totalPoints, 700);
   const currentQuestions = questions.filter(q => q.subject === selectedSubject);
+  const [gradeFilter, setGradeFilter] = useState<'prep' | 'middle' | 'high' | null>(null);
+  const [selectedGradeForSubjects, setSelectedGradeForSubjects] = useState<number | null>(null);
+  const [showMyWeaknesses, setShowMyWeaknesses] = useState(false);
+  const [myWeakQuestions, setMyWeakQuestions] = useState<any[]>([]);
+  const fetchMyWeakQuestions = async () => {
+  if (userType !== 'student') return;
+
+  try {
+    const res = await fetch('http://localhost:8000/api/student/weak-questions/', {
+      credentials: 'include'
+    });
+
+    if (!res.ok) throw new Error('Сул талыг ачаалж чадсангүй');
+
+    const data = await res.json();
+    setMyWeakQuestions(data);
+  } catch (err) {
+    console.error(err);
+    alert('Таны сул талыг ачаалж чадсангүй');
+  }
+};
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-50">
@@ -334,16 +355,26 @@ const fetchTotalPoints = async () => {
   <div className="text-right">
     <p className="text-2xl font-bold text-gray-800">{currentUser?.username || 'Хэрэглэгч'}</p>
     <p className="text-xl text-gray-600">{userType === 'teacher' ? 'Багш' : ''}</p>
-
-    {userType === 'student' && (
-      <div className="mt-3 flex items-center justify-end gap-3">
-        <span className="text-lg text-gray-600">Нийт оноо:</span>
-        <span className="text-3xl font-extrabold text-yellow-600">
-  {animatedPoints}
-</span>
-        <span className="text-2xl">🏆</span>
+{userType === 'student' && (
+  <div className="mt-3">
+    <button
+      onClick={() => {
+        if (!showMyWeaknesses) fetchMyWeakQuestions();
+        setShowMyWeaknesses(prev => !prev);
+        setShowLeaderboard(false);
+      }}
+      className="flex items-center justify-end gap-4 px-6 py-4 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+    >
+      <div className="text-right">
+        <p className="text-lg text-gray-700 font-semibold">Нийт оноо:</p>
+        <p className="text-4xl font-extrabold text-white drop-shadow-lg">
+          {animatedPoints}
+        </p>
       </div>
-    )}
+      <span className="text-4xl animate-bounce">🏆</span>
+    </button>
+  </div>
+)}
   </div>
 
   <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white px-10 py-5 rounded-2xl font-bold text-xl shadow-xl hover:shadow-2xl transition">
@@ -373,59 +404,253 @@ const fetchTotalPoints = async () => {
     </ol>
   </div>
 )}
-        {/* GRADES VIEW */}
-        {currentView === 'grades' && (
-          <div className="animate-fadeIn">
-            <h2 className="text-5xl font-extrabold text-center mb-12 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-              {userType === 'teacher' ? 'Миний хариуцдаг хичээлүүд' : 'Анги сонгоно уу'}
-            </h2>
+{/* Миний сул тал хэсэг - Онооны хэсэг дээр дарвал гарч ирнэ */}
+        {showMyWeaknesses && userType === 'student' && (
+          <div className="mt-20 bg-white rounded-3xl shadow-2xl p-12 border-4 border-red-500 max-w-6xl mx-auto animate-fadeIn mb-20">
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-6xl font-extrabold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
+                Миний алдаанууд
+              </h2>
+              <button
+                onClick={() => setShowMyWeaknesses(false)}
+                className="text-5xl text-gray-600 hover:text-gray-800 transition hover:scale-110"
+              >
+                ✕
+              </button>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-              {grades.map((grade: Grade) => {
-                const visibleSubjects = userType === 'teacher' && currentUser
-                  ? grade.subjects.filter(sub => 
-                      currentUser.taught_subjects.some(ts => ts.id === sub.id)
-                    )
-                  : grade.subjects;
+            <p className="text-3xl text-center text-gray-700 mb-12">
+              Доорх асуултууд дээр та хамгийн их алдаж байна. Эдгээрийг{' '}
+              <span className="font-bold text-red-600">заавал давтаарай!</span>
+            </p>
 
-                if (userType === 'teacher' && visibleSubjects.length === 0) return null;
+            {myWeakQuestions.length === 0 ? (
+              <div className="text-center py-24">
+                <p className="text-8xl mb-8">🎉🏆</p>
+                <p className="text-5xl font-extrabold text-green-600 mb-6">
+                  Та гайхалтай байна!
+                </p>
+                <p className="text-3xl text-gray-700">
+                  Одоогоор алдаа гаргасан асуулт алга байна.<br />
+                  Үргэлжлүүлээд амжилт хүсье! 🚀
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-10">
+                {myWeakQuestions.map((q: any, index: number) => (
+                  <div
+                    key={q.question || q.question_id || index}
+                    className="bg-gradient-to-r from-red-50 to-orange-50 p-10 rounded-3xl border-l-8 border-red-600 shadow-2xl hover:shadow-3xl transition-all hover:scale-105"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 pr-8">
+                        <p className="text-2xl font-semibold text-gray-600 mb-4">
+                          #{index + 1} • {q.grade_number}-р анги •{' '}
+                          <span className="text-red-700 font-bold text-3xl">{q.subject_name}</span>
+                        </p>
+                        <p className="text-3xl font-bold text-gray-900 leading-relaxed">
+                          {q.question_text}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-7xl font-extrabold text-red-600 drop-shadow-lg">
+                          {q.wrong_count}
+                        </p>
+                        <p className="text-2xl text-gray-700 mt-2">удаа буруу</p>
+                      </div>
+                    </div>
 
-                return (
-                  <div key={grade.id} className="bg-white rounded-3xl p-12 shadow-2xl border-4 border-purple-200 hover:border-purple-400 transition-all hover:scale-105">
-                    <h3 className="text-5xl font-extrabold text-center mb-10 text-purple-700">
-                      {grade.number}-р анги
-                    </h3>
-                    <p className="text-2xl text-center text-gray-700 mb-10">
-                      {visibleSubjects.length} хичээл
-                    </p>
-
-                    <div className="space-y-6">
-                      {visibleSubjects.map((sub: Subject) => (
-                        <div
-                          key={sub.id}
-                          onClick={() => {
-                            setSelectedGrade(grade.id);
-                            setSelectedSubject(sub.id);
-                            setCurrentView('quiz');
-                            setAnswers({});
-                            setResult(null);
-                          }}
-                          className="bg-gradient-to-r from-emerald-100 to-teal-100 p-10 rounded-3xl cursor-pointer hover:scale-105 transition-all shadow-xl text-center border-4 border-emerald-200 hover:border-emerald-500"
-                        >
-                          <h4 className="text-3xl font-bold text-emerald-800 mb-4">{sub.name}</h4>
-                          <div className="flex justify-center gap-8 text-xl">
-                            <span className="text-gray-700">{sub.question_count || 0} асуулт</span>
-                            <span className="text-green-600 font-bold">{sub.total_points || 0} оноо</span>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                      <div className="bg-blue-100 p-6 rounded-2xl">
+                        <p className="text-4xl font-bold text-blue-700">{q.total_attempts}</p>
+                        <p className="text-xl text-gray-700 mt-2">Нийт оролдлого</p>
+                      </div>
+                      <div className="bg-green-100 p-6 rounded-2xl">
+                        <p className="text-4xl font-bold text-green-700">{q.correct_count}</p>
+                        <p className="text-xl text-gray-700 mt-2">Зөв хариулт</p>
+                      </div>
+                      <div className="bg-red-100 p-6 rounded-2xl">
+                        <p className="text-4xl font-bold text-red-700">
+                          {q.total_attempts > 0
+                            ? Math.round((q.wrong_count / q.total_attempts) * 100)
+                            : 0}%
+                        </p>
+                        <p className="text-xl text-gray-700 mt-2">Алдааны хувь</p>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
+
+{/* GRADES VIEW - ЗӨВХӨН СОНГОСОН БҮЛЭГ ХАРАГДАХ */}
+{currentView === 'grades' && (
+  <div className="animate-fadeIn">
+    <h2 className="text-5xl font-extrabold text-center mb-12 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+      {userType === 'teacher' ? 'Миний хариуцдаг хичээлүүд' : 'Анги сонгоно уу'}
+    </h2>
+
+    {/* Буцах товч - зөвхөн анги сонгосон үед */}
+    {selectedGradeForSubjects && (
+      <button
+        onClick={() => {
+          setSelectedGradeForSubjects(null);
+          setGradeFilter(null);
+        }}
+        className="mb-10 text-indigo-600 font-bold text-2xl hover:underline"
+      >
+        ← Бүлэг сонгох руу буцах
+      </button>
+    )}
+
+    {/* 1. Ангийн бүлэг сонгоогүй бол - 3 том товч */}
+    {!selectedGradeForSubjects && (
+      <>
+        <div className="flex justify-center gap-12 mb-20 flex-wrap px-4">
+          <button
+            onClick={() => setGradeFilter('prep')}
+            className={`px-16 py-10 rounded-3xl text-4xl font-extrabold transition-all shadow-2xl transform hover:scale-110 ${
+              gradeFilter === 'prep'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                : 'bg-white border-6 border-purple-400 text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            Бэлтгэл анги<br /><span className="text-2xl font-normal">(1-5 р анги)</span>
+          </button>
+
+          <button
+            onClick={() => setGradeFilter('middle')}
+            className={`px-16 py-10 rounded-3xl text-4xl font-extrabold transition-all shadow-2xl transform hover:scale-110 ${
+              gradeFilter === 'middle'
+                ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white'
+                : 'bg-white border-6 border-indigo-400 text-indigo-700 hover:bg-indigo-50'
+            }`}
+          >
+            Дунд анги<br /><span className="text-2xl font-normal">(6-9 р анги)</span>
+          </button>
+
+          <button
+            onClick={() => setGradeFilter('high')}
+            className={`px-16 py-10 rounded-3xl text-4xl font-extrabold transition-all shadow-2xl transform hover:scale-110 ${
+              gradeFilter === 'high'
+                ? 'bg-gradient-to-r from-pink-600 to-red-600 text-white'
+                : 'bg-white border-6 border-pink-400 text-pink-700 hover:bg-pink-50'
+            }`}
+          >
+            Ахлах анги<br /><span className="text-2xl font-normal">(10-12 р анги)</span>
+          </button>
+        </div>
+
+        {/* Бүлэг сонгосон бол ангиудыг харуулах */}
+        {gradeFilter && (
+          <>
+            <h3 className="text-4xl font-bold text-center mb-12 text-gray-800">
+              {gradeFilter === 'prep' && 'Бэлтгэл анги (1-5)'}
+              {gradeFilter === 'middle' && 'Дунд анги (6-9)'}
+              {gradeFilter === 'high' && 'Ахлах анги (10-12)'}
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 max-w-6xl mx-auto">
+              {grades
+                .filter((grade: Grade) => {
+                  if (gradeFilter === 'prep') return grade.number <= 5;
+                  if (gradeFilter === 'middle') return grade.number >= 6 && grade.number <= 9;
+                  if (gradeFilter === 'high') return grade.number >= 10 && grade.number <= 12;
+                  return false;
+                })
+                .map((grade: Grade) => {
+                  const visibleSubjects = userType === 'teacher' && currentUser
+                    ? grade.subjects.filter(sub =>
+                        currentUser.taught_subjects.some(ts => ts.id === sub.id)
+                      )
+                    : grade.subjects;
+
+                  if (userType === 'teacher' && visibleSubjects.length === 0) return null;
+
+                  return (
+                    <button
+                      key={grade.id}
+                      onClick={() => setSelectedGradeForSubjects(grade.id)}
+                      className="bg-white rounded-3xl p-16 shadow-2xl border-6 border-purple-300 hover:border-purple-500 hover:scale-110 transition-all"
+                    >
+                      <h3 className="text-6xl font-extrabold text-purple-700">
+                        {grade.number}-р анги
+                      </h3>
+                      <p className="text-3xl text-gray-700 mt-6">
+                        {visibleSubjects.length} хичээл
+                      </p>
+                    </button>
+                  );
+                })}
+            </div>
+          </>
+        )}
+
+        {/* Бүлэг сонгоогүй бол урилга */}
+        {!gradeFilter && (
+          <div className="text-center mt-32">
+            <p className="text-5xl font-bold text-gray-600 mb-12">
+              Та хүссэн ангийн бүлгээ сонгоно уу 👆
+            </p>
+          </div>
+        )}
+      </>
+    )}
+
+    {/* 2. Нэг анги сонгосон бол - тухайн ангийн хичээлүүдийг том харуулах */}
+    {selectedGradeForSubjects && (
+      <>
+        <h3 className="text-5xl font-extrabold text-center mb-16 text-purple-800">
+          {grades.find(g => g.id === selectedGradeForSubjects)?.number}-р анги
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 max-w-7xl mx-auto">
+          {grades
+            .find(g => g.id === selectedGradeForSubjects)
+            ?.subjects.filter(sub => {
+              if (userType === 'teacher' && currentUser) {
+                return currentUser.taught_subjects.some(ts => ts.id === sub.id);
+              }
+              return true;
+            })
+            .map((sub: Subject) => (
+              <div
+                key={sub.id}
+                onClick={() => {
+                  setSelectedGrade(selectedGradeForSubjects);
+                  setSelectedSubject(sub.id);
+                  setCurrentView('quiz');
+                  setAnswers({});
+                  setResult(null);
+                }}
+                className="bg-gradient-to-r from-emerald-100 to-teal-100 p-16 rounded-3xl cursor-pointer hover:scale-110 transition-all shadow-2xl text-center border-6 border-emerald-300 hover:border-emerald-600"
+              >
+                <h4 className="text-5xl font-extrabold text-emerald-800 mb-8">{sub.name}</h4>
+                <div className="space-y-6 text-3xl">
+                  <p className="text-gray-800">{sub.question_count || 0} асуулт</p>
+                  <p className="text-green-600 font-bold">{sub.total_points || 0} оноо</p>
+                </div>
+              </div>
+            ))}
+        </div>
+
+        {/* Хичээл байхгүй бол */}
+        {grades.find(g => g.id === selectedGradeForSubjects)?.subjects.filter(sub => {
+          if (userType === 'teacher' && currentUser) {
+            return currentUser.taught_subjects.some(ts => ts.id === sub.id);
+          }
+          return true;
+        }).length === 0 && (
+          <p className="text-center text-4xl text-gray-500 mt-20">
+            Энэ ангид таны хариуцдаг хичээл алга байна 🙁
+          </p>
+        )}
+      </>
+    )}
+  </div>
+)}
 
         {/* QUIZ VIEW - ТЕСТ МАЯГИЙН АСУУЛТ (2-4 СОНГОЛТТОЙ) */}
         {currentView === 'quiz' && selectedSubject && (

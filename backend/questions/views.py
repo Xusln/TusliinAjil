@@ -15,6 +15,9 @@ from rest_framework.decorators import api_view, permission_classes  # ← api_vi
 from rest_framework.permissions import IsAuthenticated  # ← IsAuthenticated
 from rest_framework.response import Response  # ← Response
 from rest_framework import status
+from django.db.models import Sum, Count, Q, F
+
+
 # ===================== GRADE =====================
 class GradeViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -143,3 +146,33 @@ def student_total_points(request):
     ).aggregate(total=Sum('points_earned'))['total'] or 0
 
     return Response({'total_points': total_points})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def student_weak_questions(request):
+    """
+    Нэвтэрсэн сурагчийн хамгийн их буруу хариулсан асуултуудыг буцаана
+    "Миний сул тал" хэсэгт ашиглана
+    """
+    # user_type шалгалт - таны custom user модель дээр байгаа гэж үзье
+    if getattr(request.user, 'user_type', None) != 'student':
+        return Response(
+            {"detail": "Зөвхөн сурагч хандах боломжтой"},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    stats = Result.objects.filter(user=request.user) \
+        .values('question_id') \
+        .annotate(
+            question_text=F('question__question'),
+            subject_name=F('question__subject__name'),
+            grade_number=F('question__subject__grade__number'),  # ← Яг энэ зам!
+            total_attempts=Count('id'),
+            correct_count=Count('id', filter=Q(is_correct=True)),
+            wrong_count=Count('id', filter=Q(is_correct=False)),
+        ) \
+        .filter(wrong_count__gt=0) \
+        .order_by('-wrong_count')
+
+    return Response(list(stats))

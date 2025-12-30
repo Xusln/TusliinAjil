@@ -17,4 +17,9 @@ urlpatterns = [
         views.student_total_points,
         name='student-total-points'
     ),
+    path(
+        'student/weak-questions/',
+        views.student_weak_questions,
+        name='student-weak-questions'
+    ),
 ]
