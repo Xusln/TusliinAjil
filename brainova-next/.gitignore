@@ -1,41 +1,60 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# =========================
+# Dependencies
+# =========================
+node_modules/
+mobile-app/node_modules/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# =========================
+# Expo / React Native
+# =========================
+.expo/
+.expo-shared/
+dist/
+build/
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# =========================
+# Logs
+# =========================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# =========================
+# Environment
+# =========================
+.env
+.env.*
 
-# vercel
-.vercel
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
 
-# typescript
+# =========================
+# Cache
+# =========================
+.cache/
+.tmp/
+*.log
+
+# =========================
+# TypeScript
+# =========================
 *.tsbuildinfo
-next-env.d.ts
+
+# =========================
+# Next.js (if used)
+# =========================
+.next/
+out/
+
+# =========================
+# Misc
+# =========================
+*.pem
+coverage/
